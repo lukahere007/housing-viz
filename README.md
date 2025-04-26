@@ -29,25 +29,25 @@ The driver script writes all PNGs to **`figs/`** so the repo ships with the
 exact same images you see below.
 
 ### 1. House‑Price Index — all countries
-!![HPI spaghetti](figs/hpi_spaghetti.png)
+![HPI spaghetti](Housing_Data/figs/hpi_spaghetti.png)
 
 ### 2. Top‑5 fastest‑growing markets (2015 → 2024)
-!![Top‑growth](figs/top5_growth.png)
+![Top‑growth](Housing_Data/figs/top5_growth.png)
 
 ### 3. Affordability ratio — worst 10 each year
-!![Affordability facets](figs/affordability_facets.png)
+![Affordability facets](Housing_Data/figs/affordability_facets.png)
 
 ### 4. Smoothed HPI for four major economies
-!![HPI smoothed](figs/hpi_smoothed_panel.png)
+![HPI smoothed](Housing_Data/figs/hpi_smoothed_panel.png)
 
 ### 5. YoY change heat‑map
-!![YoY heatmap](figs/yoy_heatmap.png)
+![YoY heatmap](Housing_Data/figs/yoy_heatmap.png)
 
 ### 6. Affordability by region
-!![Region boxplot](figs/region_boxplot.png)
+![Region boxplot](Housing_Data/figs/region_boxplot.png)
 
 ### 7. Correlation matrix (Japan example)
-!![Japan corr](figs/japan_corr.png)
+![Japan corr](Housing_Data/figs/japan_corr.png)
 
 ### 8. Interactive affordability “race”
 The driver launches an HTML/Plotly slider (not embedded here); you can also

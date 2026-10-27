@@ -1,39 +1,72 @@
-# -*- coding: utf-8 -*-
 """
-Created on Fri Apr 25 20:15:05 2025
+housing_viz.py - plotting helpers for the Kaggle "Global Housing Market
+Analysis 2015-2024" dataset (20 countries x 10 years = 200 rows).
 
-@author: lukew
+Author: Luke Wamalwa
+
+Note: the dataset looks randomly generated (see README, "About the data"),
+so these functions are best read as a visualisation toolkit, not as a
+source of real-world housing conclusions.
 """
-
-# ─────────────────────────────────────────────────────────────
-# housing_viz.py  –  helper module for the Global Housing data
-# ─────────────────────────────────────────────────────────────
 from __future__ import annotations
 
 import pathlib
-import kagglehub
-import pandas as pd
-import seaborn as sns
+
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import plotly.express as px
+import seaborn as sns
 
 sns.set_theme(style="whitegrid")
 
-# ╭─────────────────────────── 1. DATA I/O ───────────────────────────╮
-def download_housing_dataset(
-        url: str = "atharvasoundankar/global-housing-market-analysis-2015-2024"
-) -> pd.DataFrame:
-    """Download + clean the Kaggle dataset; cached after first call."""
-    root = pathlib.Path(kagglehub.dataset_download(url))
-    csv  = next(root.rglob("*.csv*"))
-    df   = pd.read_csv(csv)
+KAGGLE_DATASET = "atharvasoundankar/global-housing-market-analysis-2015-2024"
+DATA_DIR = pathlib.Path(__file__).resolve().parent / "data"
 
+# Country names exactly as they appear in the dataset (with spaces).
+REGION_MAP: dict[str, str] = {
+    "USA": "Americas", "Canada": "Americas", "Brazil": "Americas",
+    "Mexico": "Americas",
+    "UK": "Europe", "Germany": "Europe", "France": "Europe", "Italy": "Europe",
+    "Spain": "Europe", "Netherlands": "Europe", "Sweden": "Europe",
+    "Switzerland": "Europe", "Russia": "Europe/Asia",
+    "China": "Asia", "India": "Asia", "Japan": "Asia", "South Korea": "Asia",
+    "Australia": "Oceania", "UAE": "Middle East", "South Africa": "Africa",
+}
+
+
+# ╭─────────────────────────── 1. DATA I/O ───────────────────────────╮
+def _clean_columns(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
     df.columns = (df.columns
                     .str.strip()
                     .str.replace(" ", "_")
                     .str.replace("%", "pct")
                     .str.replace(r"[()]", "", regex=True))
     return df
+
+
+def load_housing_data(csv_path: str | pathlib.Path | None = None,
+                      dataset: str = KAGGLE_DATASET) -> pd.DataFrame:
+    """Load and clean the dataset.
+
+    Order of preference: an explicit `csv_path`, any CSV in `data/`, and
+    finally a download through kagglehub (needs a Kaggle API token; cached
+    in ~/.cache/kagglehub after the first call).
+    """
+    if csv_path is None:
+        local = sorted(DATA_DIR.glob("*.csv"))
+        if local:
+            csv_path = local[0]
+    if csv_path is None:
+        import kagglehub  # imported lazily so the plots work without it
+        root = pathlib.Path(kagglehub.dataset_download(dataset))
+        csv_path = next(root.rglob("*.csv*"))
+    return _clean_columns(pd.read_csv(csv_path))
+
+
+# Backwards-compatible name used in the original notebooks.
+download_housing_dataset = load_housing_data
 # ╰────────────────────────────────────────────────────────────╯
 
 
@@ -47,15 +80,13 @@ def line_hpi_all(df, ax=None):
 
 
 def top_growth(df, top_n=5, ax=None):
-    growth = (df.groupby("Country")
-                .apply(lambda g: g.loc[g.Year==2024, "House_Price_Index"].iat[0]
-                                - g.loc[g.Year==2015, "House_Price_Index"].iat[0])
-                .sort_values(ascending=False))
+    wide = df.pivot(index="Country", columns="Year", values="House_Price_Index")
+    growth = (wide[wide.columns.max()] - wide[wide.columns.min()]).sort_values(ascending=False)
     focus = df[df.Country.isin(growth.head(top_n).index)]
     ax = ax or plt.gca()
     sns.lineplot(data=focus, x="Year", y="House_Price_Index",
                  hue="Country", marker="o", linewidth=2, ax=ax)
-    ax.set_title(f"Top {top_n} fastest-growing markets", weight="bold")
+    ax.set_title(f"Top {top_n} markets by HPI change, first to last year", weight="bold")
     return ax
 
 
@@ -98,7 +129,11 @@ def yoy_heatmap(df, ax=None):
     return ax
 
 
-def region_boxplot(df, region_map: dict[str,str], ax=None):
+def region_boxplot(df, region_map: dict[str, str] | None = None, ax=None):
+    region_map = region_map or REGION_MAP
+    missing = sorted(set(df.Country) - set(region_map))
+    if missing:
+        raise ValueError(f"No region for: {missing}")
     local = df.copy()
     local["Region"] = local.Country.map(region_map)
     ax = ax or plt.gca()
@@ -114,7 +149,7 @@ def corr_heatmap(df, country, vars_num, ax=None):
     ax = ax or plt.gca()
     sns.heatmap(corr, vmin=-1, vmax=1, cmap="vlag",
                 annot=True, ax=ax)
-    ax.set_title(f"{country} – correlation matrix")
+    ax.set_title(f"{country} – correlation matrix (n = {len(df[df.Country == country])} years)")
     return ax
 
 
@@ -151,15 +186,27 @@ def plotly_affordability_slider(df):
 # ╰────────────────────────────────────────────────────────────╯
 
 
-# ───────────────────────────  DEMO  ───────────────────────────
-if __name__ == "__main__":        # runs only if you execute the file directly
-    import seaborn as sns, matplotlib.pyplot as plt
+# ╭──────────── 4. IS THERE ANY SIGNAL? (sanity check) ────────────╮
+def persistence_check(df, col: str = "Affordability_Ratio") -> dict:
+    """Quick test of whether a country-year series behaves like real data.
 
-    df_demo = download_housing_dataset()
+    Real housing indicators are persistent: this year's value is close to
+    last year's, and countries differ from each other. Independent random
+    draws show lag-1 autocorrelation near zero and no country effect.
+    """
+    from scipy import stats
 
-    plt.figure(figsize=(12, 6))
-    line_hpi_all(df_demo); plt.show()
-
-    g_demo = sns.FacetGrid(df_demo, col="Year", col_wrap=3, height=4, sharex=False)
-    g_demo.map_dataframe(affordability_bar, n_countries=10)
-    plt.tight_layout(); plt.show()
+    wide = df.pivot(index="Country", columns="Year", values=col).sort_index(axis=1)
+    lag1 = [np.corrcoef(r[:-1], r[1:])[0, 1] for r in wide.to_numpy()]
+    anova = stats.f_oneway(*[g[col].to_numpy() for _, g in df.groupby("Country")])
+    return {
+        "n_rows": len(df),
+        "min": float(df[col].min()),
+        "max": float(df[col].max()),
+        "median_lag1_autocorr": float(np.median(lag1)),
+        "countries_with_positive_lag1": int(sum(a > 0 for a in lag1)),
+        "n_countries": int(wide.shape[0]),
+        "median_abs_yearly_change": float(wide.diff(axis=1).abs().stack().median()),
+        "country_anova_p": float(anova.pvalue),
+    }
+# ╰────────────────────────────────────────────────────────────╯

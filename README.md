@@ -1,94 +1,104 @@
-# Housing‑Viz
+# Housing-Viz
 
-Light‑weight helper module (`housing_viz.py`) plus example notebooks / scripts
-for exploring the **Kaggle Global Housing Market Analysis 2015 – 2024** dataset.
+[![CI](https://github.com/lukahere007/housing-viz/actions/workflows/ci.yml/badge.svg)](https://github.com/lukahere007/housing-viz/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 
----
+A small plotting toolkit (`housing_viz.py`) for country-by-year panel data, demonstrated on the Kaggle
+[*Global Housing Market Analysis 2015-2024*](https://www.kaggle.com/datasets/atharvasoundankar/global-housing-market-analysis-2015-2024)
+dataset (20 countries x 10 years = 200 rows): spaghetti and small-multiple line charts, faceted bar charts,
+a YoY heat-map, regional box-plots, correlation matrices and an animated Plotly bar race.
 
-## Quick‑start
+**The main finding is about the data itself: it does not behave like real housing data.** The values look like
+independent random draws, so the charts are a demonstration of technique, not evidence about housing markets
+in any country. Details below.
+
+## About the data (read this first)
+
+Real affordability ratios and price indices move slowly: this year's value is close to last year's, and some
+countries are consistently more expensive than others. Running `hv.persistence_check()` on the 200
+`Affordability_Ratio` values (recovered from the Plotly output saved in the original notebook, since Kaggle
+could not be reached when this README was written) gives:
+
+| Check | Result | What real data would show |
+|---|---|---|
+| Range | 3.04 to 11.88, spread roughly evenly | Skewed, country-specific levels |
+| Median year-to-year autocorrelation within a country | **-0.17** (positive in only 5 of 20 countries) | Strongly positive (close to 1) |
+| Median absolute change from one year to the next | 2.69 points | Small relative to the level |
+| One-way ANOVA, do countries differ? | **p = 0.16** (no detectable country effect) | Large, clear differences |
+
+The house-price index looks the same way in the figures: most countries swing up and down by tens of percent
+every year with no trend ([YoY heat-map](figs/yoy_heatmap.png)). Treat the dataset as synthetic. Earlier
+versions of this README drew country-level conclusions (e.g. "Germany & UK consistently least affordable",
+"Japan HPI tracks inflation"); those have been removed because the data cannot support them.
+
+## Figures
+
+All PNGs in `figs/` are produced by `make_figures.py`. Figures 1-5 and 7 come from the author's original run on
+the Kaggle data. Figure 6 was regenerated after fixing a bug (see below).
+
+**HPI by country.** No country follows a trend; the lines cross constantly.
+
+![HPI spaghetti](figs/hpi_spaghetti.png)
+
+**Affordability by region.** Corrected version, with all 20 countries. Four regions contain a single
+country, so their boxes are one country's ten years.
+
+![Region boxplot](figs/region_boxplot.png)
+
+**YoY change in HPI.**
+
+![YoY heatmap](figs/yoy_heatmap.png)
+
+Other figures: [top-5 HPI change](figs/top5_growth.png), [affordability facets](figs/affordability_facets.png),
+[smoothed HPI panel](figs/hpi_smoothed_panel.png), [Japan correlation matrix](figs/japan_corr.png)
+(10 yearly points per coefficient, so it is mostly noise).
+
+## Fixes in this version
+
+- **Region box-plot dropped 3 of 20 countries.** The region map used `South_Korea` / `South_Africa`, but the data
+  says `South Korea` / `South Africa`, and Mexico was missing. They silently became `NaN` and the "Africa" box never
+  appeared. Now the map uses the dataset's names, and `region_boxplot` raises an error if any country is unmapped.
+  Corrected regional medians: Africa 8.65, Americas 6.24, Asia 6.72, Europe 7.61, Europe/Asia (Russia only) 9.80,
+  Middle East 8.16, Oceania 6.64.
+- Removed hard-coded Windows paths (`sys.path.append(r"C:\Users\...")`); everything runs from the repo root.
+- Merged the duplicated layout (`Housing_Data/`, a checkpoint copy and two near-identical notebooks, about 24 MB)
+  into one module, one script and one small notebook.
+
+## Repository layout
+
+```
+├── housing_viz.py              # plotting helpers + data loader + persistence_check()
+├── make_figures.py             # regenerates every PNG in figs/
+├── notebooks/
+│   └── housing_viz_tour.ipynb  # walk-through of each plot (saved without outputs)
+├── figs/                       # PNGs shown above
+├── tests/                      # pytest smoke tests on a fake frame with the same schema
+├── data/                       # put the Kaggle CSV here (git-ignored)
+└── requirements.txt
+```
+
+## Run it
 
 ```bash
-git clone https://github.com/<your‑username>/housing‑viz.git
+git clone https://github.com/lukahere007/housing-viz.git
 cd housing-viz
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-python driver_generate_figs.py                      # or open demo.ipynb
+
+pytest                         # smoke tests, no data needed
+python make_figures.py --html  # needs the data, see below
 ```
 
-> **Prerequisite:** place your `kaggle.json` API key in `~/.kaggle/`  
-> (see the [Kaggle docs](https://www.kaggle.com/docs/api) for details).
+Data: either download the CSV from the Kaggle page into `data/`, or place a Kaggle API token in `~/.kaggle/kaggle.json`
+and `kagglehub` downloads it on first use (cached in `~/.cache/kagglehub`).
 
-The first run downloads a tiny (18 kB) CSV with 200 rows and caches it in
-`~/.cache/kagglehub`. Subsequent runs are instant.
+## Limitations
 
----
-
-## Generated visualisations
-
-The driver script writes all PNGs to **`figs/`** so the repo ships with the
-exact same images you see below.
-
-### 1. House‑Price Index — all countries
-![HPI spaghetti](Housing_Data/figs/hpi_spaghetti.png)
-
-### 2. Top‑5 fastest‑growing markets (2015 → 2024)
-![Top‑growth](Housing_Data/figs/top5_growth.png)
-
-### 3. Affordability ratio — worst 10 each year
-![Affordability facets](Housing_Data/figs/affordability_facets.png)
-
-### 4. Smoothed HPI for four major economies
-![HPI smoothed](Housing_Data/figs/hpi_smoothed_panel.png)
-
-### 5. YoY change heat‑map
-![YoY heatmap](Housing_Data/figs/yoy_heatmap.png)
-
-### 6. Affordability by region
-![Region boxplot](Housing_Data/figs/region_boxplot.png)
-
-### 7. Correlation matrix (Japan example)
-![Japan corr](Housing_Data/figs/japan_corr.png)
-
-### 8. Interactive affordability “race”
-The driver launches an HTML/Plotly slider (not embedded here); you can also
-export it:
-
-```python
-fig = hv.plotly_affordability_slider(df)
-fig.write_html("figs/affordability_slider.html")
-```
-
----
-
-## One‑line interpretations
-
-| Visual | Insight |
-|--------|---------|
-| **Spaghetti HPI** | India & UAE push past 175 by 2024, while China/Brazil stay < 120. |
-| **Top‑5 growth** | UK edges out France in 2024; Sweden rebounds after 2021 slump. |
-| **Affordability** | Germany & UK consistently least‑affordable; India & China most affordable. |
-| **Smoothed HPI** | Japan shows strong post‑2021 recovery; Germany follows a W‑shape. |
-| **YoY heat‑map** | France 2016 and Russia 2024 spike > 70 % YoY. |
-| **Region box‑plot** | Europe/Asia median affordability ≈ 10 vs Americas ≈ 6. |
-| **Correlation** | In Japan, HPI positively tracks inflation (+0.47) and inversely tracks population growth (−0.48). |
-
----
-
-## Folder layout
-
-```
-housing-viz/
-│
-├─ housing_viz.py          # helper library
-├─ driver_generate_figs.py # recreates all PNGs in figs/
-├─ demo.ipynb              # interactive tour (optional)
-├─ figs/                   # pre‑generated images
-├─ requirements.txt
-└─ README.md
-```
-
----
+- The notebook was not re-run against the real data for this version (Kaggle was unreachable). The code was
+  checked by running the full notebook and `make_figures.py` on a fake dataset with the same columns.
+- The dataset's documentation does not say how it was made. The "synthetic" conclusion comes from the checks
+  above, not from the dataset author.
 
 ## License
 
-MIT – use, fork, and enjoy!
+MIT, see [LICENSE](LICENSE).

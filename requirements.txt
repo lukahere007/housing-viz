@@ -1,0 +1,8 @@
+pandas>=2.2
+numpy>=1.25
+matplotlib>=3.7
+seaborn>=0.13
+plotly>=5.19
+scipy>=1.11
+kagglehub>=0.3     # only needed to download the data
+pytest>=8          # tests

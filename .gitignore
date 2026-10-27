@@ -1,1 +1,6 @@
 .ipynb_checkpoints/
+__pycache__/
+.pytest_cache/
+.venv/
+data/*.csv
+figs/*.html
